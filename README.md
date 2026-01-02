@@ -16,67 +16,16 @@ The system architecture consists of five primary layers:
 
 ```mermaid
 graph TB
-    subgraph "Presentation Layer"
-        UI[Gradio Web Interface]
-        Upload[File Upload Component]
-        Player[Audio Player]
-    end
-    
-    subgraph "Application Layer"
-        API[API Controller]
-        ReqHandler[Request Handler]
-        RespFormatter[Response Formatter]
-    end
-    
-    subgraph "Processing Layer"
-        AudioProc[Audio Preprocessor]
-        TextProc[Text Processor]
-        PostProc[Post Processor]
-        Silence[Silence Trimmer]
-    end
-    
-    subgraph "Model Layer"
-        Encoder[Text Encoder<br/>LSTM]
-        Attention[Attention Mechanism]
-        Decoder[Mel-Spec Decoder]
-        Vocoder[WaveGlow Vocoder]
-        SpkEnc[Speaker Encoder]
-    end
-    
-    subgraph "Data Layer"
-        VoiceDB[(Voice Embeddings)]
-        Models[(Model Checkpoints)]
-        AudioFS[Audio File Storage]
-    end
-    
-    UI --> Upload
-    UI --> Player
-    Upload --> API
-    API --> ReqHandler
-    ReqHandler --> AudioProc
-    ReqHandler --> TextProc
-    AudioProc --> SpkEnc
-    TextProc --> Encoder
-    Encoder --> Attention
-    Attention --> Decoder
-    SpkEnc --> Decoder
-    Decoder --> Vocoder
-    Vocoder --> PostProc
-    PostProc --> Silence
-    Silence --> RespFormatter
-    RespFormatter --> Player
-    
-    SpkEnc -.-> VoiceDB
-    Encoder -.-> Models
-    Decoder -.-> Models
-    Vocoder -.-> Models
-    PostProc --> AudioFS
+    UI[Gradio Interface] --> API[API Layer]
+    API --> Process[Processing Layer]
+    Process --> Model[Neural Models]
+    Model --> Storage[(Storage)]
     
     style UI fill:#e1f5ff
     style API fill:#fff4e1
-    style AudioProc fill:#f0e1ff
-    style Encoder fill:#ffe1e1
-    style VoiceDB fill:#e1ffe1
+    style Process fill:#f0e1ff
+    style Model fill:#ffe1e1
+    style Storage fill:#e1ffe1
 ```
 
 ### Architecture Components
@@ -115,35 +64,14 @@ The system supports deployment in cloud-based notebook environments (Kaggle, Goo
 
 ```mermaid
 graph LR
-    subgraph "Development Environment"
-        Colab[Google Colab/<br/>Kaggle Notebook]
-        GPU[T4/P100 GPU]
-        Storage[Persistent Storage]
-    end
-    
-    subgraph "Runtime Components"
-        Python[Python 3.11<br/>Runtime]
-        PyTorch[PyTorch 2.1<br/>CUDA 12.1]
-        Gradio[Gradio<br/>Interface]
-    end
-    
-    subgraph "External Access"
-        Public[Public URL<br/>via Gradio Share]
-        Users[End Users]
-    end
-    
-    Colab --> Python
-    Python --> PyTorch
-    PyTorch --> GPU
-    Python --> Gradio
-    Gradio --> Public
-    Public --> Users
-    Python -.-> Storage
+    Colab[Colab/Kaggle] --> Python[Python + PyTorch]
+    Python --> GPU[GPU]
+    Python --> Gradio[Gradio UI]
+    Gradio --> Users[Users]
     
     style Colab fill:#f9f9f9
     style GPU fill:#ffe1e1
     style Gradio fill:#e1f5ff
-    style Public fill:#e1ffe1
 ```
 
 ## 4.2 Context Diagram
@@ -152,40 +80,17 @@ The context diagram illustrates the system's boundaries and interactions with ex
 
 ```mermaid
 graph TB
-    User[👤 End User<br/>Content Creator/Producer]
-    Admin[👤 System Administrator<br/>ML Engineer]
+    User[User] -->|Upload Audio & Text| System[Voice Cloning System]
+    System -->|Generated Audio| User
+    Admin[Admin] -->|Configure| System
+    System -->|Logs| Admin
     
-    subgraph System["Voice Cloning & Speech Synthesis System"]
-        Core[Core Processing Engine]
-    end
-    
-    RefAudio[(Reference Audio<br/>Files)]
-    Models[(Pre-trained<br/>Model Weights)]
-    Output[(Generated<br/>Audio Files)]
-    Config[(Configuration<br/>Parameters)]
-    
-    User -->|1. Upload reference audio| Core
-    User -->|2. Input text script| Core
-    User -->|3. Set parameters| Core
-    Core -->|4. Generated speech| User
-    Core -->|5. Timestamps & metadata| User
-    
-    Admin -->|Configure model| Core
-    Admin -->|Monitor performance| Core
-    Core -->|System logs| Admin
-    
-    Core -->|Read| RefAudio
-    Core -->|Load| Models
-    Core -->|Write| Output
-    Core -->|Read| Config
-    
-    RefAudio -.->|Voice samples| User
-    Output -.->|Downloads| User
+    System -->|Read| Audio[(Audio Files)]
+    System -->|Load| Models[(Models)]
     
     style User fill:#e1f5ff
     style Admin fill:#fff4e1
-    style System fill:#f0e1ff
-    style Core fill:#ffe1e1
+    style System fill:#ffe1e1
 ```
 
 ### Context Description
@@ -234,67 +139,22 @@ The detailed system design elaborates on the internal architecture, focusing on 
 The core of the system is built around a sequence-to-sequence architecture with attention mechanisms, specifically designed for text-to-speech synthesis with voice cloning capabilities.
 
 ```mermaid
-graph TD
-    subgraph "Input Processing"
-        TextIn[Text Input<br/>'Hello World']
-        AudioIn[Reference Audio<br/>24kHz WAV]
-        TextEnc[Character Tokenizer<br/>Vocab: 100 chars]
-        AudioFeat[Feature Extractor<br/>Mel-Spec: 80 bins]
-    end
+graph LR
+    Text[Text Input] --> Encoder[Text Encoder]
+    Audio[Reference Audio] --> SpkEnc[Speaker Encoder]
     
-    subgraph "Encoder Network"
-        CharEmbed[Character Embedding<br/>Dimension: 512]
-        ConvLayers[3x Conv1D Layers<br/>Kernel: 5, Filters: 512]
-        BiLSTM[Bi-LSTM Layers<br/>2 layers, 256 units each]
-        EncOut[Encoder Output<br/>Shape: [T, 512]]
-    end
+    Encoder --> Attention[Attention]
+    SpkEnc --> Decoder[Decoder]
+    Attention --> Decoder
     
-    subgraph "Speaker Embedding"
-        SpkNet[ResNet Speaker Encoder<br/>18 layers]
-        SpkEmbed[Speaker Embedding<br/>192-dimensional vector]
-        SpkTile[Tile & Concatenate<br/>to each decoder step]
-    end
+    Decoder --> Mel[Mel-Spec]
+    Mel --> Vocoder[Vocoder]
+    Vocoder --> Output[Audio Output]
     
-    subgraph "Attention & Decoder"
-        Attention[Location-Sensitive<br/>Attention]
-        Prenet[Prenet<br/>2x FC: 256 units]
-        DecLSTM[Decoder LSTM<br/>2 layers, 1024 units]
-        Postnet[Postnet<br/>5x Conv1D: 512 filters]
-        MelOut[Mel-Spectrogram<br/>Shape: [N, 80]]
-    end
-    
-    subgraph "Vocoder"
-        WaveGlow[WaveGlow Vocoder<br/>12 coupling layers]
-        AudioOut[Audio Waveform<br/>24kHz, Float32]
-    end
-    
-    TextIn --> TextEnc
-    TextEnc --> CharEmbed
-    CharEmbed --> ConvLayers
-    ConvLayers --> BiLSTM
-    BiLSTM --> EncOut
-    
-    AudioIn --> AudioFeat
-    AudioFeat --> SpkNet
-    SpkNet --> SpkEmbed
-    
-    EncOut --> Attention
-    SpkEmbed --> SpkTile
-    Attention --> Prenet
-    SpkTile --> DecLSTM
-    Prenet --> DecLSTM
-    DecLSTM --> Postnet
-    Postnet --> MelOut
-    
-    MelOut --> WaveGlow
-    WaveGlow --> AudioOut
-    
-    style TextIn fill:#e1f5ff
-    style AudioIn fill:#e1f5ff
-    style EncOut fill:#fff4e1
-    style SpkEmbed fill:#f0e1ff
-    style MelOut fill:#ffe1e1
-    style AudioOut fill:#e1ffe1
+    style Text fill:#e1f5ff
+    style Audio fill:#e1f5ff
+    style Mel fill:#ffe1e1
+    style Output fill:#e1ffe1
 ```
 
 ### Component Specifications
@@ -343,100 +203,25 @@ graph TD
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant UI as Gradio Interface
-    participant API as API Controller
-    participant Proc as Audio Processor
-    participant Model as Neural Model
-    participant Storage as File Storage
-    
-    User->>UI: Upload reference audio
-    UI->>API: POST /upload {audio_file}
-    API->>Proc: Validate & preprocess audio
-    Proc->>Proc: Resample to 24kHz, normalize
-    Proc->>Model: Extract speaker embedding
-    Model-->>Proc: 192-dim embedding vector
-    Proc->>Storage: Save voice profile
-    Storage-->>UI: Voice added to dropdown
-    
-    User->>UI: Enter text & select voice
-    User->>UI: Click "Generate Audio"
-    UI->>API: POST /generate {text, voice_id, params}
-    API->>Proc: Tokenize text
-    Proc->>Model: Load voice embedding
-    Model->>Model: Encode text sequence
-    Model->>Model: Apply attention & decode
-    Model->>Model: Generate mel-spectrogram
-    Model->>Model: Vocoder: mel → waveform
-    Model-->>Proc: Audio waveform [N samples]
-    Proc->>Proc: Trim silence (optional)
-    Proc->>Proc: Normalize audio
-    Proc->>Storage: Save output.wav
-    Storage-->>UI: Return audio file + metadata
-    UI-->>User: Display audio player & download
-    
-    Note over Model: Processing time: 1-5 minutes<br/>depending on text length
+    User->>UI: Upload audio & text
+    UI->>API: Process request
+    API->>Model: Extract embeddings
+    Model->>Model: Generate speech
+    Model->>UI: Return audio
+    UI->>User: Play audio
 ```
 
 ### Data Flow Architecture
 
 ```mermaid
 flowchart LR
-    subgraph Input["Input Stage"]
-        A1[Text Script]
-        A2[Reference Audio]
-    end
+    A[Text + Audio] --> B[Preprocessing]
+    B --> C[Encoding]
+    C --> D[Synthesis]
+    D --> E[Audio Output]
     
-    subgraph Preprocessing["Preprocessing Stage"]
-        B1[Character Tokenization]
-        B2[Audio Resampling<br/>24kHz Mono]
-        B3[Mel-Spectrogram<br/>Extraction]
-    end
-    
-    subgraph Encoding["Encoding Stage"]
-        C1[Text Embedding<br/>512-dim]
-        C2[Convolutional<br/>Encoding]
-        C3[Bi-LSTM<br/>Encoding]
-        C4[Speaker<br/>Embedding]
-    end
-    
-    subgraph Synthesis["Synthesis Stage"]
-        D1[Attention<br/>Alignment]
-        D2[Decoder<br/>LSTM]
-        D3[Mel-Spectrogram<br/>Generation]
-        D4[WaveGlow<br/>Vocoder]
-    end
-    
-    subgraph Output["Output Stage"]
-        E1[Audio Waveform]
-        E2[Silence Trimming]
-        E3[Final Output<br/>WAV File]
-    end
-    
-    A1 --> B1
-    A2 --> B2
-    B2 --> B3
-    
-    B1 --> C1
-    C1 --> C2
-    C2 --> C3
-    B3 --> C4
-    
-    C3 --> D1
-    C4 --> D1
-    D1 --> D2
-    D2 --> D3
-    D3 --> D4
-    
-    D4 --> E1
-    E1 --> E2
-    E2 --> E3
-    
-    style Input fill:#e1f5ff
-    style Preprocessing fill:#fff4e1
-    style Encoding fill:#f0e1ff
-    style Synthesis fill:#ffe1e1
-    style Output fill:#e1ffe1
+    style A fill:#e1f5ff
+    style E fill:#e1ffe1
 ```
 
 ## 5.2 Detailed Design
@@ -452,36 +237,21 @@ flowchart LR
 ```plantuml
 @startuml
 class AudioPreprocessor {
-  - target_sample_rate: int = 24000
-  - n_mels: int = 80
-  - n_fft: int = 1024
-  - hop_length: int = 256
-  
-  + __init__(config: dict)
-  + load_audio(file_path: str): np.ndarray
-  + resample_audio(audio: np.ndarray, orig_sr: int): np.ndarray
-  + normalize_audio(audio: np.ndarray): np.ndarray
-  + extract_mel_spectrogram(audio: np.ndarray): np.ndarray
-  + trim_silence(audio: np.ndarray, threshold: float): np.ndarray
+  + load_audio()
+  + extract_mel_spectrogram()
+  + trim_silence()
 }
 
-class FeatureExtractor {
-  - mel_basis: np.ndarray
-  - window: np.ndarray
-  
-  + compute_stft(audio: np.ndarray): np.ndarray
-  + mel_filterbank(): np.ndarray
-  + extract_mfcc(audio: np.ndarray): np.ndarray
+class TextProcessor {
+  + tokenize()
+  + clean_text()
 }
 
-class AudioValidator {
-  + validate_format(file_path: str): bool
-  + check_sample_rate(audio: np.ndarray): bool
-  + check_duration(audio: np.ndarray, min_sec: float): bool
+class ModelInference {
+  + generate_speech()
+  + encode_text()
+  + synthesize_audio()
 }
-
-AudioPreprocessor --> FeatureExtractor
-AudioPreprocessor --> AudioValidator
 @enduml
 ```
 
@@ -537,35 +307,17 @@ END FUNCTION
 ```plantuml
 @startuml
 class TextProcessor {
-  - vocab: dict
-  - vocab_size: int = 100
-  - max_length: int = 1000
-  
-  + __init__(vocab_file: str)
-  + tokenize(text: str): List[int]
-  + detokenize(tokens: List[int]): str
-  + pad_sequence(tokens: List[int], max_len: int): np.ndarray
-  + clean_text(text: str): str
+  + tokenize()
+  + clean_text()
+  + pad_sequence()
 }
 
 class CharacterTokenizer {
-  - char_to_id: dict
-  - id_to_char: dict
-  
-  + encode(text: str): List[int]
-  + decode(token_ids: List[int]): str
-  + build_vocabulary(corpus: List[str]): dict
-}
-
-class TextNormalizer {
-  + expand_abbreviations(text: str): str
-  + normalize_numbers(text: str): str
-  + remove_special_chars(text: str): str
-  + to_lowercase(text: str): str
+  + encode()
+  + decode()
 }
 
 TextProcessor --> CharacterTokenizer
-TextProcessor --> TextNormalizer
 @enduml
 ```
 
@@ -624,40 +376,22 @@ END FUNCTION
 ```plantuml
 @startuml
 class ModelInference {
-  - model: NeuralNetwork
-  - device: str
-  - inference_steps: int
-  
-  + __init__(model_path: str, device: str)
-  + generate_speech(text_tokens: Tensor, speaker_emb: Tensor): Tensor
-  + encode_text(tokens: Tensor): Tensor
-  + decode_mel(encoded: Tensor, speaker: Tensor): Tensor
-  + synthesize_audio(mel_spec: Tensor): np.ndarray
+  + generate_speech()
+  + encode_text()
+  + synthesize_audio()
 }
 
 class Tacotron2Model {
-  - encoder: TextEncoder
-  - decoder: MelDecoder
-  - postnet: ConvPostnet
-  
-  + forward(text: Tensor, speaker: Tensor): Tensor
-  + inference(text: Tensor, speaker: Tensor): Tensor
+  + forward()
+  + inference()
 }
 
 class WaveGlowVocoder {
-  - flows: List[CouplingLayer]
-  - n_flows: int = 12
-  
-  + forward(mel: Tensor): Tensor
-  + infer(mel: Tensor): Tensor
+  + infer()
 }
 
 class SpeakerEncoder {
-  - resnet: ResNet18
-  - embedding_dim: int = 192
-  
-  + extract_embedding(mel: Tensor): Tensor
-  + forward(audio: Tensor): Tensor
+  + extract_embedding()
 }
 
 ModelInference --> Tacotron2Model
@@ -763,101 +497,36 @@ END FUNCTION
 
 ```mermaid
 flowchart TD
-    Start([User Initiates Generation]) --> Upload{Reference Audio<br/>Uploaded?}
-    
-    Upload -->|No| UploadPrompt[Prompt User to Upload Audio]
-    UploadPrompt --> ProcessAudio[Process & Add to Voice Library]
-    Upload -->|Yes| SelectVoice[Select Voice from Dropdown]
-    ProcessAudio --> SelectVoice
-    
-    SelectVoice --> EnterText[Enter Text Script]
-    EnterText --> SetParams[Set Generation Parameters<br/>CFG Scale, Silence Trim]
-    
-    SetParams --> Validate{Inputs Valid?}
-    Validate -->|No| Error1[Display Error Message]
-    Error1 --> EnterText
-    
-    Validate -->|Yes| StartGen[Initialize Generation]
-    StartGen --> LoadModel[Load Neural Models<br/>Tacotron2 + WaveGlow]
-    
-    LoadModel --> ExtractEmb[Extract Speaker Embedding<br/>from Reference Audio]
-    ExtractEmb --> EncodeText[Encode Text Sequence<br/>Character Tokenization]
-    
-    EncodeText --> AttentionLoop{Attention &<br/>Decoding Loop}
-    AttentionLoop --> GenMel[Generate Mel-Spectrogram<br/>Frame by Frame]
-    
-    GenMel --> CheckStop{Stop Token<br/>Predicted?}
-    CheckStop -->|No| AttentionLoop
-    CheckStop -->|Yes| Postnet[Apply Postnet Refinement]
-    
-    Postnet --> Vocoder[WaveGlow Vocoding<br/>Mel → Audio Waveform]
-    Vocoder --> PostProc[Post-Processing<br/>Normalization & Silence Trim]
-    
-    PostProc --> SaveFile[Save Audio File<br/>.wav Format]
-    SaveFile --> GenMeta[Generate Metadata<br/>Timestamps JSON]
-    
-    GenMeta --> Display[Display Audio Player<br/>& Download Links]
-    Display --> End([Generation Complete])
+    Start([Start]) --> Upload[Upload Audio]
+    Upload --> Enter[Enter Text]
+    Enter --> Generate[Click Generate]
+    Generate --> Process[Process & Generate]
+    Process --> Display[Display Audio]
+    Display --> End([End])
     
     style Start fill:#e1f5ff
     style End fill:#e1ffe1
-    style Error1 fill:#ffe1e1
-    style LoadModel fill:#fff4e1
-    style Vocoder fill:#f0e1ff
 ```
 
 ### Database Schema Design
 
 ```plantuml
 @startuml
-entity "VoiceProfiles" as VP {
-  * voice_id : VARCHAR(36) <<PK>>
-  --
+entity VoiceProfiles {
+  * voice_id : VARCHAR(36)
   voice_name : VARCHAR(100)
   audio_path : VARCHAR(255)
   embedding_vector : BLOB
-  sample_rate : INTEGER
-  duration_sec : FLOAT
-  created_at : TIMESTAMP
-  updated_at : TIMESTAMP
 }
 
-entity "GenerationHistory" as GH {
-  * generation_id : VARCHAR(36) <<PK>>
-  --
-  voice_id : VARCHAR(36) <<FK>>
+entity GenerationHistory {
+  * generation_id : VARCHAR(36)
+  voice_id : VARCHAR(36)
   input_text : TEXT
   output_path : VARCHAR(255)
-  cfg_scale : FLOAT
-  inference_steps : INTEGER
-  duration_sec : FLOAT
-  file_size_mb : FLOAT
-  created_at : TIMESTAMP
 }
 
-entity "ModelCheckpoints" as MC {
-  * checkpoint_id : VARCHAR(36) <<PK>>
-  --
-  model_name : VARCHAR(100)
-  version : VARCHAR(20)
-  file_path : VARCHAR(255)
-  file_size_mb : FLOAT
-  architecture : VARCHAR(50)
-  parameters : JSON
-  created_at : TIMESTAMP
-}
-
-entity "SystemLogs" as SL {
-  * log_id : VARCHAR(36) <<PK>>
-  --
-  log_level : VARCHAR(20)
-  message : TEXT
-  module : VARCHAR(100)
-  timestamp : TIMESTAMP
-}
-
-VP ||--o{ GH : "used in"
-MC ||--o{ GH : "generated with"
+VoiceProfiles ||--o{ GenerationHistory
 @enduml
 ```
 
