@@ -14,6 +14,8 @@ The system architecture consists of five primary layers:
 4. **Model Layer**: Neural network components (Tacotron2 encoder-decoder, vocoder)
 5. **Data Layer**: Voice embeddings storage, model checkpoints, and audio file management
 
+**Diagram 1: System Architecture**
+
 ```mermaid
 graph TB
     UI[Gradio Interface] --> API[API Layer]
@@ -60,23 +62,13 @@ graph TB
 
 ### Deployment Architecture
 
-The system supports deployment in cloud-based notebook environments (Kaggle, Google Colab) with GPU acceleration:
-
-```mermaid
-graph LR
-    Colab[Colab/Kaggle] --> Python[Python + PyTorch]
-    Python --> GPU[GPU]
-    Python --> Gradio[Gradio UI]
-    Gradio --> Users[Users]
-    
-    style Colab fill:#f9f9f9
-    style GPU fill:#ffe1e1
-    style Gradio fill:#e1f5ff
-```
+The system supports deployment in cloud-based notebook environments (Kaggle, Google Colab) with GPU acceleration. The deployment utilizes Python runtime with PyTorch for deep learning operations, leveraging GPU resources for accelerated training and inference. The Gradio interface provides web-based access to end users through a public URL.
 
 ## 4.2 Context Diagram
 
 The context diagram illustrates the system's boundaries and interactions with external entities. The Voice Cloning System operates as a self-contained unit processing user inputs and generating audio outputs.
+
+**Diagram 2: Context Diagram**
 
 ```mermaid
 graph TB
@@ -137,6 +129,8 @@ The detailed system design elaborates on the internal architecture, focusing on 
 ### Neural Network Architecture
 
 The core of the system is built around a sequence-to-sequence architecture with attention mechanisms, specifically designed for text-to-speech synthesis with voice cloning capabilities.
+
+**Diagram 3: Neural Network Architecture**
 
 ```mermaid
 graph LR
@@ -201,6 +195,8 @@ graph LR
 
 ### Processing Pipeline Design
 
+**Diagram 4: Processing Pipeline**
+
 ```mermaid
 sequenceDiagram
     User->>UI: Upload audio & text
@@ -211,18 +207,7 @@ sequenceDiagram
     UI->>User: Play audio
 ```
 
-### Data Flow Architecture
-
-```mermaid
-flowchart LR
-    A[Text + Audio] --> B[Preprocessing]
-    B --> C[Encoding]
-    C --> D[Synthesis]
-    D --> E[Audio Output]
-    
-    style A fill:#e1f5ff
-    style E fill:#e1ffe1
-```
+The processing pipeline follows a sequential flow where user inputs are validated, preprocessed, and fed through the neural network models. The text encoder processes the input script while the speaker encoder extracts voice characteristics from the reference audio. These representations are combined in the decoder to generate mel-spectrograms, which are then converted to audio waveforms through the vocoder.
 
 ## 5.2 Detailed Design
 
@@ -302,25 +287,6 @@ END FUNCTION
 
 **Purpose**: Convert input text into tokenized sequences suitable for neural network processing.
 
-**Class Design:**
-
-```plantuml
-@startuml
-class TextProcessor {
-  + tokenize()
-  + clean_text()
-  + pad_sequence()
-}
-
-class CharacterTokenizer {
-  + encode()
-  + decode()
-}
-
-TextProcessor --> CharacterTokenizer
-@enduml
-```
-
 **Algorithm: Text Tokenization**
 
 ```
@@ -346,7 +312,7 @@ FUNCTION tokenize_text(input_text, vocabulary, max_length=1000):
               IF c IN vocabulary THEN
                   tokens.append(vocabulary[c])
               ELSE
-                  tokens.append(vocabulary['<UNK>'])  // Unknown token
+                  tokens.append(vocabulary['<UNK>'])
               END IF
            END FOR
         
@@ -371,35 +337,6 @@ END FUNCTION
 
 **Purpose**: Execute forward pass through encoder-decoder architecture to generate mel-spectrograms and synthesize audio.
 
-**Class Design:**
-
-```plantuml
-@startuml
-class ModelInference {
-  + generate_speech()
-  + encode_text()
-  + synthesize_audio()
-}
-
-class Tacotron2Model {
-  + forward()
-  + inference()
-}
-
-class WaveGlowVocoder {
-  + infer()
-}
-
-class SpeakerEncoder {
-  + extract_embedding()
-}
-
-ModelInference --> Tacotron2Model
-ModelInference --> WaveGlowVocoder
-ModelInference --> SpeakerEncoder
-@enduml
-```
-
 **Algorithm: Speech Generation**
 
 ```
@@ -419,50 +356,42 @@ FUNCTION generate_speech(text_input, reference_audio, cfg_scale=1.3):
         
         2. Extract speaker embedding
            speaker_emb ← speaker_encoder(mel_ref)
-           // speaker_emb shape: [192]
         
         3. Encode text sequence
            text_hidden ← text_encoder(tokens)
-           // text_hidden shape: [seq_len, 512]
         
         4. Initialize decoder state
-           decoder_hidden ← zeros([2, 1024])  // 2 layers
+           decoder_hidden ← zeros([2, 1024])
            attention_weights ← zeros([seq_len])
            mel_outputs ← empty list
         
         5. Autoregressive decoding
-           previous_mel ← zeros([80])  // Start token
+           previous_mel ← zeros([80])
            
            FOR frame_idx FROM 0 TO max_frames DO
-              // Apply attention
               context, attention_weights ← attention(
                   query=decoder_hidden,
                   keys=text_hidden,
                   prev_weights=attention_weights
               )
               
-              // Concatenate inputs
               decoder_input ← concatenate([
                   previous_mel,
                   speaker_emb,
                   context
               ])
               
-              // Decoder forward pass
               decoder_input ← prenet(decoder_input)
               decoder_output, decoder_hidden ← decoder_lstm(
                   decoder_input,
                   decoder_hidden
               )
               
-              // Predict mel-frame
               mel_frame ← linear_projection(decoder_output)
               mel_outputs.append(mel_frame)
               
-              // Update for next iteration
               previous_mel ← mel_frame
               
-              // Check for stop condition
               stop_prob ← stop_token_predictor(decoder_output)
               IF stop_prob > 0.5 THEN
                   BREAK
@@ -472,9 +401,8 @@ FUNCTION generate_speech(text_input, reference_audio, cfg_scale=1.3):
         6. Apply postnet refinement
            mel_spectrogram ← stack(mel_outputs)
            mel_spectrogram ← postnet(mel_spectrogram)
-           // mel_spectrogram shape: [num_frames, 80]
         
-        7. Apply classifier-free guidance (optional)
+        7. Apply classifier-free guidance
            IF cfg_scale > 1.0 THEN
               mel_uncond ← generate_unconditional(tokens)
               mel_spectrogram ← mel_uncond + cfg_scale × 
@@ -483,7 +411,6 @@ FUNCTION generate_speech(text_input, reference_audio, cfg_scale=1.3):
         
         8. Vocoder synthesis
            audio_waveform ← waveglow_vocoder(mel_spectrogram)
-           // audio_waveform shape: [num_samples]
         
         9. Post-process audio
            audio_waveform ← normalize(audio_waveform)
@@ -494,6 +421,8 @@ END FUNCTION
 ```
 
 ### System Workflow Design
+
+**Diagram 5: System Workflow**
 
 ```mermaid
 flowchart TD
@@ -508,31 +437,22 @@ flowchart TD
     style End fill:#e1ffe1
 ```
 
-### Database Schema Design
+The workflow represents the user journey from uploading reference audio to receiving the generated speech output. The system validates inputs, extracts features, processes them through neural networks, and delivers the synthesized audio back to the user through the web interface.
 
-```plantuml
-@startuml
-entity VoiceProfiles {
-  * voice_id : VARCHAR(36)
-  voice_name : VARCHAR(100)
-  audio_path : VARCHAR(255)
-  embedding_vector : BLOB
-}
+### Implementation Details
 
-entity GenerationHistory {
-  * generation_id : VARCHAR(36)
-  voice_id : VARCHAR(36)
-  input_text : TEXT
-  output_path : VARCHAR(255)
-}
+**Key Implementation Considerations:**
 
-VoiceProfiles ||--o{ GenerationHistory
-@enduml
-```
+1. **Memory Management**: Efficient batching and gradient accumulation for large models
+2. **GPU Utilization**: CUDA operations for tensor processing and model inference
+3. **Error Handling**: Comprehensive validation and graceful degradation
+4. **Performance Optimization**: Caching of speaker embeddings and model checkpoints
+5. **Audio Quality**: 24kHz sampling rate, 80-bin mel-spectrograms, silence trimming
 
-### Interface Design Specifications
+**Deployment Configuration:**
 
-**Gradio Interface Layout:**
-
-```
-┌─────────────────────────────────
+- **Environment**: Google Colab / Kaggle Notebooks
+- **GPU**: NVIDIA T4 or P100 for accelerated inference
+- **Framework**: PyTorch 2.1+ with CUDA 12.1
+- **Interface**: Gradio with public URL sharing
+- **Storage**: Local file system with optional Google Drive integration
