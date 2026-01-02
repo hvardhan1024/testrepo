@@ -217,28 +217,6 @@ The processing pipeline follows a sequential flow where user inputs are validate
 
 **Purpose**: Prepare raw audio files for neural network processing by standardizing format, quality, and extracting relevant features.
 
-**Class Design:**
-
-```plantuml
-@startuml
-class AudioPreprocessor {
-  + load_audio()
-  + extract_mel_spectrogram()
-  + trim_silence()
-}
-
-class TextProcessor {
-  + tokenize()
-  + clean_text()
-}
-
-class ModelInference {
-  + generate_speech()
-  + encode_text()
-  + synthesize_audio()
-}
-@enduml
-```
 
 **Algorithm: Silence Trimming**
 
